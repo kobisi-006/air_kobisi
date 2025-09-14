@@ -1,7 +1,7 @@
-//  [AIR KOBISI QUANTUM EDITION]                                            
-//  >> A superposition of elegant code states                           
-//  >> Collapsed into optimal execution                                
-//  >> Scripted by Air Kobisi™                                          
+//  [AIR KOBISI QUANTUM EDITION]
+//  >> A superposition of elegant code states
+//  >> Collapsed into optimal execution
+//  >> Scripted by Air Kobisi™
 //  >> Version: 8.3.5-quantum.7
 
 require("dotenv").config();
@@ -21,53 +21,65 @@ const port = process.env.PORT || 3000;
 app.get("/", (req, res) => res.send("✅ John~wick Bot is Online"));
 app.listen(port, () => console.log(`Bot Web Server running on port ${port}`));
 
-// ================= CONFIG =================
 const PREFIX = "😂";
 const BOT_NAME = "John~wick";
 const OWNER_NUMBER = "0654478605";
-let ANTI_LINK = true; // default ON
+let ANTI_LINK = true;
 const randomEmojis = ["🔥","😂","😎","🤩","❤️","👌","🎯","💀","🥵","👀"];
-const warnings = {}; // store user warnings for antilink
+const warnings = {};
 
 async function startBot() {
-  const { state, saveCreds } = await useMultiFileAuthState("session");
+  // ===== Multi-file Auth =====
+  const authFolder = "./session";
+  if (!fs.existsSync(authFolder)) fs.mkdirSync(authFolder);
+
+  const { state, saveCreds } = await useMultiFileAuthState(authFolder);
   const { version } = await fetchLatestBaileysVersion();
 
   const sock = makeWASocket({
     version,
     auth: state,
     logger: P({ level: "silent" }),
-    markOnlineOnConnect: false,
+    markOnlineOnConnect: true,
   });
 
   sock.ev.on("creds.update", saveCreds);
 
-  // ===== Manual QR handling =====
+  // ===== Connection Updates =====
   sock.ev.on("connection.update", (update) => {
-    const { connection, qr } = update;
+    const { connection, lastDisconnect, qr } = update;
+
     if (qr) {
+      console.log("📱 Scan this QR to login:");
       qrcode.generate(qr, { small: true });
-      console.log("📱 Scan QR code above to login.");
     }
+
     if (connection === "open") {
       console.log("✅ Connected to WhatsApp!");
-    }
-    if (connection === "close") {
-      console.log("❌ Connection closed");
+    } else if (connection === "close") {
+      console.log("❌ Connection closed:", lastDisconnect?.error?.output?.statusCode || lastDisconnect?.error);
+      // Auto-reconnect
+      startBot();
+    } else if (connection === "connecting") {
+      console.log("⏳ Connecting...");
     }
   });
 
-  // ===== Load Commands =====
+  // ===== Commands Loader =====
   const commands = new Map();
   const commandsPath = path.join(__dirname, "commands");
   if (!fs.existsSync(commandsPath)) fs.mkdirSync(commandsPath);
-  fs.readdirSync(commandsPath).forEach(file => {
-    if (file.endsWith(".js")) {
+
+  const commandFiles = fs.readdirSync(commandsPath).filter(f => f.endsWith(".js"));
+  for (const file of commandFiles) {
+    try {
       const command = require(path.join(commandsPath, file));
-      if (command.name) commands.set(command.name, command);
-      console.log(`Loaded command: ${file}`);
+      if (command.name) commands.set(command.name.toLowerCase(), command);
+      console.log(`✅ Loaded command: ${file}`);
+    } catch (err) {
+      console.error(`❌ Failed to load command ${file}:`, err);
     }
-  });
+  }
 
   // ===== Messages Handler =====
   sock.ev.on("messages.upsert", async ({ messages }) => {
@@ -77,24 +89,21 @@ async function startBot() {
     const type = Object.keys(m.message)[0];
     const text = m.message?.conversation || m.message?.extendedTextMessage?.text || "";
 
-    // ---- Auto ViewOnce Open ----
+    // Auto ViewOnce
     if (type === "viewOnceMessageV2") {
       try {
         const msg = m.message.viewOnceMessageV2.message;
         await sock.sendMessage(from, { forward: msg }, { quoted: m });
-      } catch (e) {
-        console.error("Error auto-opening ViewOnce:", e);
-      }
+      } catch (e) { console.error("ViewOnce Error:", e); }
     }
 
-    // ---- Fake Recording ----
+    // Fake Recording Presence
     await sock.sendPresenceUpdate("recording", from);
 
-    // ---- Antilink ----
+    // Antilink
     if (ANTI_LINK && /https?:\/\/|wa\.me\/|chat\.whatsapp\.com|whatsapp\.com\/channel\//i.test(text)) {
       if (from.endsWith("@g.us")) {
         await sock.sendMessage(from, { delete: m.key });
-
         const sender = m.key.participant || m.key.remoteJid;
         warnings[sender] = (warnings[sender] || 0) + 1;
 
@@ -111,20 +120,20 @@ async function startBot() {
       }
     }
 
-    // ---- Commands Handler ----
+    // Commands Handler
     if (text.startsWith(PREFIX)) {
       const args = text.slice(PREFIX.length).trim().split(/ +/);
-      const cmd = args.shift().toLowerCase();
-      if (commands.has(cmd)) {
+      const cmdName = args.shift().toLowerCase();
+      if (commands.has(cmdName)) {
         try {
-          await commands.get(cmd).execute(sock, m, args, { PREFIX, BOT_NAME, OWNER_NUMBER, ANTI_LINK, setAntilink });
+          await commands.get(cmdName).execute(sock, m, args, { PREFIX, BOT_NAME, OWNER_NUMBER, ANTI_LINK, setAntilink });
         } catch (e) {
-          console.error(e);
+          console.error(`❌ Error executing command ${cmdName}:`, e);
         }
       }
     }
 
-    // ---- Auto View Status ----
+    // Auto View Status
     if (m.key.remoteJid === "status@broadcast") {
       await sock.readMessages([m.key]);
       await sock.sendMessage("status@broadcast", {
@@ -133,9 +142,7 @@ async function startBot() {
     }
   });
 
-  function setAntilink(value) {
-    ANTI_LINK = value;
-  }
+  function setAntilink(value) { ANTI_LINK = value; }
 }
 
 startBot();
