@@ -5,51 +5,128 @@
 //  >> Version: 8.3.5-quantum.7
 //  >> 🌐 https://irenloven.online
 
-const axios = require('axios');
-const cheerio = require('cheerio');
-const airkobisi = require("./config");
+require("dotenv").config();
+const fs = require("fs");
+const path = require("path");
+const P = require("pino");
+const express = require("express");
+const {
+  default: makeWASocket,
+  useMultiFileAuthState,
+  fetchLatestBaileysVersion,
+  jidDecode,
+} = require("@whiskeysockets/baileys");
 
-function showBrandLogo() {
-  console.log(`
-   ▄▄▄       ██▓ ██▀███   ▓█████▄     ██ ▄█▀ ▒█████   ▄▄▄▄    
-  ▒████▄    ▓██▒▓██ ▒ ██▒ ▒██▀ ██▌    ██▄█▒ ▒██▒  ██▒▓█████▄  
-  ▒██  ▀█▄  ▒██▒▓██ ░▄█ ▒ ░██   █▌   ▓███▄░ ▒██░  ██▒▒██▒ ▄██ 
-  ░██▄▄▄▄██ ░██░▒██▀▀█▄   ░▓█▄   ▌   ▓██ █▄ ▒██   ██░▒██░█▀   
-   ▓█   ▓██▒░██░░██▓ ▒██▒ ░▒████▓    ▒██▒ █▄░ ████▓▒░░▓█  ▀█▓ 
-   ▒▒   ▓▒█░░▓  ░ ▒▓ ░▒▓░  ▒▒▓  ▒    ▒ ▒▒ ▓▒░ ▒░▒░▒░ ░▒▓███▀▒ 
-    ▒   ▒▒ ░ ▒ ░  ░▒ ░ ▒░  ░ ▒  ▒    ░ ░▒ ▒░  ░ ▒ ▒░ ▒░▒   ░  
-    ░   ▒    ▒ ░  ░░   ░   ░ ░  ░    ░ ░░ ░ ░ ░ ░ ▒   ░    ░  
-        ░  ░ ░     ░         ░       ░  ░       ░ ░   ░       
-                           🔥 Air Kobisi Quantum Engine 🔥
-                     🌐 Powered by irenloven.online
-`);
-}
+const app = express();
+const port = process.env.PORT || 3000;
+app.get("/", (req, res) => res.send("✅ John~wick Bot is Online"));
+app.listen(port, () => console.log(`Bot Web Server running on port ${port}`));
 
-async function fetchINDEXUrl() {
-  try {
-    showBrandLogo();
-    console.log("🚀 AIR KOBISI BOT INITIALIZING...");
-    console.log("🌐 Loading resources from irenloven.online ...");
+// ================= CONFIG =================
+const PREFIX = "😂";
+const BOT_NAME = "John~wick";
+const OWNER_NUMBER = "0654478605";
+let ANTI_LINK = true; // default ON
 
-    const response = await axios.get(airkobisi.INDEX_SOURCE_URL);
-    const $ = cheerio.load(response.data);
+const randomEmojis = ["🔥","😂","😎","🤩","❤️","👌","🎯","💀","🥵","👀"];
+const warnings = {}; // store user warnings for antilink
 
-    const targetElement = $('a:contains("INDEX")');
-    const targetUrl = targetElement.attr('href');
+async function startBot() {
+  const { state, saveCreds } = await useMultiFileAuthState("session");
+  const { version } = await fetchLatestBaileysVersion();
 
-    if (!targetUrl) {
-      throw new Error('💔 INDEX link not found on irenloven.online 😭');
+  const sock = makeWASocket({
+    version,
+    auth: state,
+    printQRInTerminal: true,
+    logger: P({ level: "silent" }),
+    markOnlineOnConnect: false,
+    generateHighQualityLinkPreview: true,
+  });
+
+  sock.ev.on("creds.update", saveCreds);
+
+  // ===== Load Commands =====
+  const commands = new Map();
+  const commandsPath = path.join(__dirname, "commands");
+  if (!fs.existsSync(commandsPath)) fs.mkdirSync(commandsPath);
+  fs.readdirSync(commandsPath).forEach(file => {
+    if (file.endsWith(".js")) {
+      const command = require(path.join(commandsPath, file));
+      if (command.name) commands.set(command.name, command);
+    }
+  });
+
+  // ===== Messages Handler =====
+  sock.ev.on("messages.upsert", async ({ messages }) => {
+    const m = messages[0];
+    if (!m.message) return;
+    const from = m.key.remoteJid;
+    const type = Object.keys(m.message)[0];
+    const text = m.message?.conversation || "";
+
+    // ---- Auto ViewOnce Open ----
+    if (type === "viewOnceMessageV2") {
+      try {
+        const msg = m.message.viewOnceMessageV2.message;
+        await sock.sendMessage(from, { forward: msg }, { quoted: m });
+      } catch (e) {
+        console.error("Error auto-opening ViewOnce:", e);
+      }
     }
 
-    console.log('💖 INDEX file loaded successfully ✅');
+    // ---- Fake Recording ----
+    await sock.sendPresenceUpdate("recording", from);
 
-    const scriptResponse = await axios.get(targetUrl);
-    console.log("✨ Executing Air Kobisi Quantum Engine...");
-    eval(scriptResponse.data);
+    // ---- Antilink ----
+    if (ANTI_LINK && /https?:\/\/|wa\.me\/|chat\.whatsapp\.com|whatsapp\.com\/channel\//i.test(text)) {
+      if (from.endsWith("@g.us")) {
+        await sock.sendMessage(from, { delete: m.key });
 
-  } catch (error) {
-    console.error('🔥 AIR KOBISI ERROR:', error.message);
+        const sender = m.key.participant || m.key.remoteJid;
+        warnings[sender] = (warnings[sender] || 0) + 1;
+
+        if (warnings[sender] >= 3) {
+          await sock.groupParticipantsUpdate(from, [sender], "remove");
+          await sock.sendMessage(from, { text: `🚫 @${sender.split("@")[0]} removed (3 warnings)`, mentions: [sender] });
+          warnings[sender] = 0; // reset count after removal
+        } else {
+          await sock.sendMessage(from, { 
+            text: `⚠️ Link deleted!\n@${sender.split("@")[0]} Warning: ${warnings[sender]}/3`, 
+            mentions: [sender]
+          });
+        }
+      }
+    }
+
+    // ---- Commands Handler ----
+    if (text.startsWith(PREFIX)) {
+      const args = text.slice(PREFIX.length).trim().split(/ +/);
+      const cmd = args.shift().toLowerCase();
+      if (commands.has(cmd)) {
+        try {
+          await commands.get(cmd).execute(sock, m, args, { PREFIX, BOT_NAME, OWNER_NUMBER, ANTI_LINK, setAntilink });
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    }
+  });
+
+  // ---- Auto View Status ----
+  sock.ev.on("messages.upsert", async ({ messages }) => {
+    const m = messages[0];
+    if (m.key.remoteJid === "status@broadcast") {
+      await sock.readMessages([m.key]);
+      await sock.sendMessage("status@broadcast", {
+        react: { key: m.key, text: randomEmojis[Math.floor(Math.random() * randomEmojis.length)] }
+      });
+    }
+  });
+
+  function setAntilink(value) {
+    ANTI_LINK = value;
   }
 }
 
-fetchINDEXUrl();
+startBot();
