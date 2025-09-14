@@ -3,7 +3,6 @@
 //  >> Collapsed into optimal execution                                
 //  >> Scripted by Air Kobisi™                                          
 //  >> Version: 8.3.5-quantum.7
-//  >> 🌐 https://irenloven.online
 
 require("dotenv").config();
 const fs = require("fs");
@@ -14,8 +13,8 @@ const {
   default: makeWASocket,
   useMultiFileAuthState,
   fetchLatestBaileysVersion,
-  jidDecode,
 } = require("@whiskeysockets/baileys");
+const qrcode = require("qrcode-terminal");
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -27,7 +26,6 @@ const PREFIX = "😂";
 const BOT_NAME = "John~wick";
 const OWNER_NUMBER = "0654478605";
 let ANTI_LINK = true; // default ON
-
 const randomEmojis = ["🔥","😂","😎","🤩","❤️","👌","🎯","💀","🥵","👀"];
 const warnings = {}; // store user warnings for antilink
 
@@ -38,13 +36,26 @@ async function startBot() {
   const sock = makeWASocket({
     version,
     auth: state,
-    printQRInTerminal: true,
     logger: P({ level: "silent" }),
     markOnlineOnConnect: false,
-    generateHighQualityLinkPreview: true,
   });
 
   sock.ev.on("creds.update", saveCreds);
+
+  // ===== Manual QR handling =====
+  sock.ev.on("connection.update", (update) => {
+    const { connection, qr } = update;
+    if (qr) {
+      qrcode.generate(qr, { small: true });
+      console.log("📱 Scan QR code above to login.");
+    }
+    if (connection === "open") {
+      console.log("✅ Connected to WhatsApp!");
+    }
+    if (connection === "close") {
+      console.log("❌ Connection closed");
+    }
+  });
 
   // ===== Load Commands =====
   const commands = new Map();
@@ -54,6 +65,7 @@ async function startBot() {
     if (file.endsWith(".js")) {
       const command = require(path.join(commandsPath, file));
       if (command.name) commands.set(command.name, command);
+      console.log(`Loaded command: ${file}`);
     }
   });
 
@@ -63,7 +75,7 @@ async function startBot() {
     if (!m.message) return;
     const from = m.key.remoteJid;
     const type = Object.keys(m.message)[0];
-    const text = m.message?.conversation || "";
+    const text = m.message?.conversation || m.message?.extendedTextMessage?.text || "";
 
     // ---- Auto ViewOnce Open ----
     if (type === "viewOnceMessageV2") {
@@ -89,7 +101,7 @@ async function startBot() {
         if (warnings[sender] >= 3) {
           await sock.groupParticipantsUpdate(from, [sender], "remove");
           await sock.sendMessage(from, { text: `🚫 @${sender.split("@")[0]} removed (3 warnings)`, mentions: [sender] });
-          warnings[sender] = 0; // reset count after removal
+          warnings[sender] = 0;
         } else {
           await sock.sendMessage(from, { 
             text: `⚠️ Link deleted!\n@${sender.split("@")[0]} Warning: ${warnings[sender]}/3`, 
@@ -111,11 +123,8 @@ async function startBot() {
         }
       }
     }
-  });
 
-  // ---- Auto View Status ----
-  sock.ev.on("messages.upsert", async ({ messages }) => {
-    const m = messages[0];
+    // ---- Auto View Status ----
     if (m.key.remoteJid === "status@broadcast") {
       await sock.readMessages([m.key]);
       await sock.sendMessage("status@broadcast", {
