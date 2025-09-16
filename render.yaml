@@ -5,7 +5,7 @@ services:
     plan: free
     branch: main
     buildCommand: npm install
-    startCommand: node index.js
+    startCommand: node src/index.js
     envVars:
       - key: NODE_VERSION
         value: 20.11.1
@@ -23,3 +23,71 @@ services:
         value: "off"
       - key: SESSION_NAME
         value: "air-kobisi-session"
+      - key: AUTO_READ
+        value: "on"
+      - key: AUTO_RECORD
+        value: "off"
+      - key: ANTI_DELETE
+        value: "on"
+      - key: WELCOME_MSG
+        value: "on"
+      - key: GOODBYE_MSG
+        value: "on"
+      - key: GROUP_ANTILINK
+        value: "on"
+      - key: GROUP_ANTIVIRUS
+        value: "on"
+      - key: GROUP_ANTIBOT
+        value: "on"
+      - key: PUBLIC_MODE
+        value: "on"
+      - key: AI_CHAT
+        value: "on"
+      - key: AI_VOICE
+        value: "on"
+      - key: IMAGE_GEN
+        value: "on"
+      - key: STICKER_MAKER
+        value: "on"
+      - key: MUSIC_PLAYER
+        value: "on"
+      - key: VIDEO_DOWNLOADER
+        value: "on"
+      - key: YT_MP3
+        value: "on"
+      - key: YT_MP4
+        value: "on"
+      - key: INSTAGRAM_DL
+        value: "on"
+      - key: FACEBOOK_DL
+        value: "on"
+      - key: TIKTOK_DL
+        value: "on"
+      - key: TWITTER_DL
+        value: "on"
+      - key: PDF_CONVERTER
+        value: "on"
+      - key: TOOLS_CALCULATOR
+        value: "on"
+      - key: TOOLS_TRANSLATE
+        value: "on"
+      - key: TOOLS_SHORTLINK
+        value: "on"
+      - key: TOOLS_REMOVE_BG
+        value: "on"
+      - key: TOOLS_QR
+        value: "on"
+      - key: TOOLS_WRITE
+        value: "on"
+      - key: FUN_TRUTH
+        value: "on"
+      - key: FUN_DARE
+        value: "on"
+      - key: FUN_JOKES
+        value: "on"
+      - key: FUN_MEMES
+        value: "on"
+      - key: OWNER_ONLY_CMDS
+        value: "on"
+      - key: DEBUG_MODE
+        value: "off"
