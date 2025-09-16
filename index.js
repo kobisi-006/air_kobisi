@@ -134,34 +134,21 @@ async function startBot() {
             }
 
             // ==== ANTI-LINK SYSTEM WITH PREVIEW (RATE-LIMITED) ====
-            if (ANTI_LINK && from.endsWith("@g.us")) {
-                const linkPattern = /(https?:\/\/[^\s]+|www\.[^\s]+|wa\.me\/|chat\.whatsapp\.com|facebook\.com\/|fb\.com\/|instagram\.com\/|youtu\.be\/|youtube\.com\/|tiktok\.com\/)/i;
-                const foundLinks = text.match(linkPattern);
+         if (ANTI_LINK && from.endsWith("@g.us")) {
+    const linkPattern = /(https?:\/\/[^\s]+|www\.[^\s]+|wa\.me\/|chat\.whatsapp\.com|facebook\.com\/|fb\.com\/|instagram\.com\/|youtu\.be\/|youtube\.com\/|tiktok\.com\/)/i;
+    const foundLinks = text.match(linkPattern);
 
-                if (foundLinks) {
-                    setTimeout(async () => {
-                        try {
-                            await sock.sendMessage(from, { delete: m.key });
+    if (foundLinks) {
+        setTimeout(async () => {
+            try {
+                // Delete message containing link
+                await sock.sendMessage(from, { delete: m.key });
 
-                            let previewText = '';
-                            try {
-                                const preview = await getLinkPreview(foundLinks[0]);
-                                const imgUrl = preview.images && preview.images[0] ? preview.images[0] : null;
-                                previewText = `🔗 Link Preview:\nTitle: ${preview.title || 'N/A'}\nDescription: ${preview.description || 'N/A'}\nURL: ${preview.url || foundLinks[0]}`;
-                                if (imgUrl) {
-                                    await sock.sendMessage(from, { image: { url: imgUrl }, caption: previewText });
-                                } else {
-                                    await sock.sendMessage(from, { text: previewText });
-                                }
-                            } catch (e) {
-                                previewText = `🔗 Link detected: ${foundLinks[0]}`;
-                                await sock.sendMessage(from, { text: previewText });
-                            }
+                // Increment warnings
+                warnings[sender] = (warnings[sender] || 0) + 1;
+                const remaining = 3 - warnings[sender];
 
-                            warnings[sender] = (warnings[sender] || 0) + 1;
-                            const remaining = 3 - warnings[sender];
-
-                            const warnMsg = `
+                const warnMsg = `
 ||_________________/¶
 ||  WARN = ${warnings[sender]}
 ||  NAME = @${sender.split("@")[0]}
@@ -171,25 +158,25 @@ async function startBot() {
 ||  do not send Links in this group
 ||by BOSS GIRL TECH
 ||________________/¶
-                            `.trim();
+                `.trim();
 
-                            await sock.sendMessage(from, { text: warnMsg, mentions: [sender] });
+                await sock.sendMessage(from, { text: warnMsg, mentions: [sender] });
 
-                            if (warnings[sender] >= 3) {
-                                await sock.groupParticipantsUpdate(from, [sender], "remove");
-                                await sock.sendMessage(from, {
-                                    text: `🚫 @${sender.split("@")[0]} removed (3 warnings)`,
-                                    mentions: [sender],
-                                });
-                                warnings[sender] = 0;
-                            }
-                        } catch (e) {
-                            console.error("Anti-Link Error:", e.message);
-                        }
-                    }, 500); // half-second delay to avoid blocking
+                if (warnings[sender] >= 3) {
+                    await sock.groupParticipantsUpdate(from, [sender], "remove");
+                    await sock.sendMessage(from, {
+                        text: `🚫 @${sender.split("@")[0]} removed (3 warnings)`,
+                        mentions: [sender],
+                    });
+                    warnings[sender] = 0;
                 }
-            }
 
+            } catch (e) {
+                console.error("Anti-Link Error:", e.message);
+            }
+        }, 500);
+    }
+}
             // ==== COMMANDS ====
             if (text.startsWith(PREFIX)) {
                 const args = text.slice(PREFIX.length).trim().split(/ +/);
