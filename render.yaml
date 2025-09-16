@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: air-kobisi-bot
+    env: node
+    plan: free
+    branch: main
+    buildCommand: npm install
+    startCommand: node index.js
+    envVars:
+      - key: NODE_VERSION
+        value: 20.11.1
+      - key: PORT
+        value: 10000
+      - key: OWNER_NAME
+        value: "air_kobisi"
+      - key: OWNER_NUMBER
+        value: "0654478605"
+      - key: PREFIX
+        value: "😂"
+      - key: AUTO_TYPING
+        value: "off"
+      - key: AUTO_REACT
+        value: "off"
+      - key: SESSION_NAME
+        value: "air-kobisi-session"
