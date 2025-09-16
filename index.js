@@ -1,7 +1,5 @@
 //  [AIR KOBISI QUANTUM EDITION]
-//  >> A superposition of elegant code states
-//  >> Collapsed into optimal execution
-//  >> Scripted by Air Kobisi™
+//  >> Clean WhatsApp Bot
 //  >> Version: 8.3.5-quantum.7
 
 require("dotenv").config();
@@ -20,21 +18,22 @@ const {
 
 const app = express();
 const port = process.env.PORT || 3000;
-app.get("/", (req, res) => res.send("✅ John~wick Bot is Online"));
-app.listen(port, () => console.log(`🌐 Bot Web Server running on port ${port}`));
+app.get("/", (req, res) => res.send("✅ Bot is Online"));
+app.listen(port, () => console.log(`🌐 Web Server running on port ${port}`));
 
 // ==== BOT SETTINGS ====
-const PREFIX = "😂";
+const PREFIX = process.env.PREFIX || "@";
 const BOT_NAME = "John~wick";
-const OWNER_NUMBER = "255760317060"; // weka namba yako hapa
+const OWNER_NUMBER = process.env.OWNER_NUMBER || "255760317060";
 
 let ANTI_LINK = true;
 let AUTO_OPEN_VIEWONCE = true;
-let BOT_MODE = "private"; // private (only owner), public (everyone)
+let BOT_MODE = "private"; // private (owner only) / public
 
-const randomEmojis = ["🔥","😂","😎","🤩","❤️","👌","🎯","💀","🥵","👀"];
 const warnings = {};
+const randomEmojis = ["🔥","😂","😎","🤩","❤️","👌","🎯","💀","🥵","👀"];
 
+// ==== START BOT ====
 async function startBot() {
   try {
     const authFolder = "./session";
@@ -48,7 +47,7 @@ async function startBot() {
       auth: state,
       logger: P({ level: "silent" }),
       markOnlineOnConnect: true,
-      browser: ["John~wick", "Chrome", "1.0"],
+      browser: [BOT_NAME, "Chrome", "1.0"],
     });
 
     sock.ev.on("creds.update", saveCreds);
@@ -60,7 +59,6 @@ async function startBot() {
         console.log("📱 Scan this QR to login:");
         qrcode.generate(qr, { small: true });
       }
-
       if (connection === "open") console.log("✅ WhatsApp bot connected!");
       else if (connection === "close") {
         const reason = lastDisconnect?.error?.output?.statusCode;
@@ -74,7 +72,7 @@ async function startBot() {
       } else if (connection === "connecting") console.log("⏳ Connecting...");
     });
 
-    // ==== COMMANDS LOADER ====
+    // ==== LOAD COMMANDS ====
     const commands = new Map();
     const commandsPath = path.join(__dirname, "commands");
     if (!fs.existsSync(commandsPath)) fs.mkdirSync(commandsPath);
@@ -145,9 +143,17 @@ async function startBot() {
         // Private mode check
         if (BOT_MODE === "private" && !isOwner) return;
 
-        // BOT MODE command
+        // --- Built-in ping ---
+        if (cmdName === "ping") {
+          const start = new Date().getTime();
+          await sock.sendMessage(from, { text: "⏳ Pinging..." }, { quoted: m });
+          const end = new Date().getTime();
+          return sock.sendMessage(from, { text: `🥊 Pong! Response time: *${end - start}ms* ✅` }, { quoted: m });
+        }
+
+        // BOT MODE
         if (cmdName === "mode") {
-          if (!isOwner) return sock.sendMessage(from, { text: "🚫 You are not allowed to change bot mode!" });
+          if (!isOwner) return sock.sendMessage(from, { text: "🚫 You cannot change bot mode!" });
           if (!args[0]) {
             return sock.sendMessage(from, { text: `🤖 Current Mode: *${BOT_MODE.toUpperCase()}*\nUse: ${PREFIX}mode public/private` });
           }
@@ -179,26 +185,7 @@ async function startBot() {
           return;
         }
 
-        // AI GPT Command
-        if (cmdName === "gpt") {
-          if (!args.length) return sock.sendMessage(from, { text: "✍️ Andika swali mfano: 😂gpt eleza kuhusu AI" }, { quoted: m });
-
-          await sock.sendMessage(from, { text: "🤖 Inafikiria..." }, { quoted: m });
-          try {
-            const response = await axios.post("http://localhost:11434/api/generate", {
-              model: "mistral", // badilisha model kama unataka (llama2/gemma)
-              prompt: args.join(" "),
-              stream: false,
-            });
-            await sock.sendMessage(from, { text: "🤖 *GPT:* " + response.data.response }, { quoted: m });
-          } catch (error) {
-            console.error("AI Error:", error.message);
-            await sock.sendMessage(from, { text: "⚠️ Samahani, AI haipatikani sasa hivi." }, { quoted: m });
-          }
-          return;
-        }
-
-        // Load commands folder
+        // Load from commands folder
         if (commands.has(cmdName)) {
           try {
             await commands.get(cmdName).execute(sock, m, args, { PREFIX, BOT_NAME, OWNER_NUMBER, ANTI_LINK, AUTO_OPEN_VIEWONCE });
@@ -208,7 +195,7 @@ async function startBot() {
         }
       }
 
-      // Auto react status
+      // Auto react to status
       if (from === "status@broadcast") {
         await sock.readMessages([m.key]);
         await sock.sendMessage("status@broadcast", {
@@ -223,5 +210,3 @@ async function startBot() {
 }
 
 startBot();
-
-
