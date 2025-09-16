@@ -24,7 +24,7 @@ app.get("/", (req, res) => res.send("✅ Bot is Online"));
 app.listen(port, () => console.log(`🌐 Web Server running on port ${port}`));
 
 // ==== BOT SETTINGS ====
-const PREFIX = process.env.PREFIX || "!";
+const PREFIX = process.env.PREFIX || "#";
 const BOT_NAME = "John~wick";
 const OWNER_NUMBER = process.env.OWNER_NUMBER || "255654478605";
 
@@ -53,6 +53,7 @@ async function startBot() {
 
         sock.ev.on("creds.update", saveCreds);
 
+        // ==== CONNECTION HANDLER ====
         sock.ev.on("connection.update", (update) => {
             const { connection, lastDisconnect, qr } = update;
 
@@ -67,11 +68,16 @@ async function startBot() {
                     console.log("🚪 Session logged out. Delete ./session folder to re-login.");
                     process.exit(1);
                 } else {
-                    console.log("❌ Connection closed, reconnecting...");
-                    startBot();
+                    console.log("❌ Connection closed, reconnecting in 5s...");
+                    setTimeout(() => startBot(), 5000); // Avoid recursive call
                 }
             } else if (connection === "connecting") console.log("⏳ Connecting...");
         });
+
+        // ==== KEEP ALIVE PING ====
+        setInterval(async () => {
+            try { await sock.sendPresenceUpdate('available'); } catch(e){};
+        }, 60000);
 
         // ==== LOAD COMMANDS ====
         const commands = new Map();
@@ -111,49 +117,51 @@ async function startBot() {
                 }
             }
 
-            // ==== AUTO VIEW STATUS ====
-            try {
-                if (from === "status@broadcast" || from.endsWith("@g.us")) {
-                    await sock.readMessages([m.key]);
-                    if (randomEmojis.length > 0) {
-                        await sock.sendMessage("status@broadcast", {
-                            react: { key: m.key, text: randomEmojis[Math.floor(Math.random() * randomEmojis.length)] },
-                        });
+            // ==== AUTO VIEW STATUS WITH RATE LIMIT ====
+            if (from === "status@broadcast") {
+                setTimeout(async () => {
+                    try {
+                        await sock.readMessages([m.key]);
+                        if (randomEmojis.length > 0) {
+                            await sock.sendMessage("status@broadcast", {
+                                react: { key: m.key, text: randomEmojis[Math.floor(Math.random() * randomEmojis.length)] },
+                            });
+                        }
+                    } catch (e) {
+                        console.error("Status AutoView Error:", e.message);
                     }
-                }
-            } catch (e) {
-                console.error("Status AutoView Error:", e.message);
+                }, 500); // 0.5s delay
             }
 
-            // ==== ANTI-LINK SYSTEM WITH PREVIEW ====
+            // ==== ANTI-LINK SYSTEM WITH PREVIEW (RATE-LIMITED) ====
             if (ANTI_LINK && from.endsWith("@g.us")) {
                 const linkPattern = /(https?:\/\/[^\s]+|www\.[^\s]+|wa\.me\/|chat\.whatsapp\.com|facebook\.com\/|fb\.com\/|instagram\.com\/|youtu\.be\/|youtube\.com\/|tiktok\.com\/)/i;
                 const foundLinks = text.match(linkPattern);
 
                 if (foundLinks) {
-                    await sock.sendMessage(from, { delete: m.key });
+                    setTimeout(async () => {
+                        try {
+                            await sock.sendMessage(from, { delete: m.key });
 
-                    // Try get preview
-                    let previewText = '';
-                    try {
-                        const preview = await getLinkPreview(foundLinks[0]);
-                        const imgUrl = preview.images && preview.images[0] ? preview.images[0] : null;
-                        previewText = `🔗 Link Preview:\nTitle: ${preview.title || 'N/A'}\nDescription: ${preview.description || 'N/A'}\nURL: ${preview.url || foundLinks[0]}`;
-                        if (imgUrl) {
-                            await sock.sendMessage(from, { image: { url: imgUrl }, caption: previewText });
-                        } else {
-                            await sock.sendMessage(from, { text: previewText });
-                        }
-                    } catch (e) {
-                        previewText = `🔗 Link detected: ${foundLinks[0]}`;
-                        await sock.sendMessage(from, { text: previewText });
-                    }
+                            let previewText = '';
+                            try {
+                                const preview = await getLinkPreview(foundLinks[0]);
+                                const imgUrl = preview.images && preview.images[0] ? preview.images[0] : null;
+                                previewText = `🔗 Link Preview:\nTitle: ${preview.title || 'N/A'}\nDescription: ${preview.description || 'N/A'}\nURL: ${preview.url || foundLinks[0]}`;
+                                if (imgUrl) {
+                                    await sock.sendMessage(from, { image: { url: imgUrl }, caption: previewText });
+                                } else {
+                                    await sock.sendMessage(from, { text: previewText });
+                                }
+                            } catch (e) {
+                                previewText = `🔗 Link detected: ${foundLinks[0]}`;
+                                await sock.sendMessage(from, { text: previewText });
+                            }
 
-                    // Update warnings
-                    warnings[sender] = (warnings[sender] || 0) + 1;
-                    const remaining = 3 - warnings[sender];
+                            warnings[sender] = (warnings[sender] || 0) + 1;
+                            const remaining = 3 - warnings[sender];
 
-                    const warnMsg = `
+                            const warnMsg = `
 ||_________________/¶
 ||  WARN = ${warnings[sender]}
 ||  NAME = @${sender.split("@")[0]}
@@ -163,18 +171,22 @@ async function startBot() {
 ||  do not send Links in this group
 ||by BOSS GIRL TECH
 ||________________/¶
-                    `.trim();
+                            `.trim();
 
-                    await sock.sendMessage(from, { text: warnMsg, mentions: [sender] });
+                            await sock.sendMessage(from, { text: warnMsg, mentions: [sender] });
 
-                    if (warnings[sender] >= 3) {
-                        await sock.groupParticipantsUpdate(from, [sender], "remove");
-                        await sock.sendMessage(from, {
-                            text: `🚫 @${sender.split("@")[0]} removed (3 warnings)`,
-                            mentions: [sender],
-                        });
-                        warnings[sender] = 0;
-                    }
+                            if (warnings[sender] >= 3) {
+                                await sock.groupParticipantsUpdate(from, [sender], "remove");
+                                await sock.sendMessage(from, {
+                                    text: `🚫 @${sender.split("@")[0]} removed (3 warnings)`,
+                                    mentions: [sender],
+                                });
+                                warnings[sender] = 0;
+                            }
+                        } catch (e) {
+                            console.error("Anti-Link Error:", e.message);
+                        }
+                    }, 500); // half-second delay to avoid blocking
                 }
             }
 
