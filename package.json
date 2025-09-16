@@ -30,7 +30,7 @@
     "uuid": "^9.0.0",
     "ws": "^8.16.0",
     "yt-search": "^2.13.1",
-    "link-preview-js": "^2.2.1"
+    "link-preview-js": "^3.1.0"
   },
   "repository": {
     "type": "git",
