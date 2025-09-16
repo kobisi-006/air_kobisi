@@ -1,58 +1,33 @@
+const warnings = {};
+
 module.exports = {
   name: "antimentionstatus",
-  alias: ["antisdelete", "antimention"],
-  description: "⚡ Auto-delete status yenye mention kwa bot/owner na report ya kila action",
-  category: "admin",
-  async run(m, { conn }) {
-    try {
-      const ownerNumber = "255654478605"; // bot owner
-      const activeChats = new Set(); // track chats already notified
+  async execute(sock, m) {
+    const from = m.key.remoteJid;
+    const sender = m.key.participant || m.key.remoteJid;
 
-      m.reply("⚡ Anti-Mention Status Delete imewasha! Bot itafuta status zenye mention na kuripoti kila action.");
+    if (from === "status@broadcast") {
+      try {
+        await sock.sendMessage("status@broadcast", { delete: m.key });
 
-      // Listen for status updates
-      conn.ev.on("presence.update", async (update) => {
-        try {
-          if (!update || !update.hasOwnProperty("statuses")) return;
-          const statuses = update.statuses;
+        warnings[sender] = (warnings[sender] || 0) + 1;
 
-          for (const [jid, status] of Object.entries(statuses)) {
-            const mentions = status.captionMentions || [];
-            const isMentioned = mentions.some((num) => num.includes(ownerNumber));
+        await sock.sendMessage("status@broadcast", {
+          text: `||_________________/¶
+||  WARN=
+||  NAME=@${sender.split("@")[0]}
+||  REASON=Mention in status 🚫
+||  COUNT WARN REMAINS=${3 - warnings[sender]}/3
+|| Status mention deleted by BOSS GIRL TECH
+|| Do not mention in status
+||________________/¶`,
+          mentions: [sender],
+        });
 
-            if (isMentioned) {
-              console.log(`[ANTIMENTIONSTATUS] Deleting status from ${jid} with mentions`);
-              
-              // Delete status
-              await conn.statusUpdate({ delete: [status.id] });
-
-              // Prepare report message
-              const reportMsg = `✅ Auto-deleted status kutoka ${jid}\nCaption: ${status.text || "No caption"}\nMentions: ${mentions.join(", ")}`;
-
-              // Notify owner
-              await conn.sendMessage(
-                ownerNumber + "@s.whatsapp.net",
-                { text: reportMsg }
-              );
-
-              // Optionally notify group / chat once
-              if (!activeChats.has(jid)) {
-                await conn.sendMessage(
-                  jid,
-                  { text: `⚡ Status yenye mention imefuta automagically!` }
-                );
-                activeChats.add(jid);
-              }
-            }
-          }
-        } catch (err) {
-          console.error("[ANTIMENTIONSTATUS] Listener Error:", err);
-        }
-      });
-
-    } catch (err) {
-      console.error("[ANTIMENTIONSTATUS] Command Error:", err);
-      m.reply("❌ Hitilafu wakati wa activating Anti-Mention Status Delete: " + err.message);
+        console.log(`✅ Status mention deleted and warn issued to ${sender}`);
+      } catch (e) {
+        console.error("AntiMentionStatus Error:", e.message);
+      }
     }
-  }
+  },
 };
