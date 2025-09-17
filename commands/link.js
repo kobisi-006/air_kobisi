@@ -9,12 +9,18 @@ module.exports = {
       const groupId = m.key.remoteJid;
       const metadata = await sock.groupMetadata(groupId);
 
-      if (!metadata.inviteCode) {
-        return sock.sendMessage(groupId, { text: "⚠️ Group hii haina invite link au siwezi kuipata." });
+      // Get invite code properly
+      let inviteCode;
+      try {
+        inviteCode = await sock.groupInviteCode(groupId); // Baileys v6.x method
+      } catch {
+        return sock.sendMessage(groupId, { text: "⚠️ Siwezi kupata invite link ya group hii." });
       }
 
-      const inviteLink = `https://chat.whatsapp.com/${metadata.inviteCode}`;
-      const owner = metadata.owner || metadata.participants.find(p => p.admin === "superadmin")?.id;
+      const inviteLink = `https://chat.whatsapp.com/${inviteCode}`;
+
+      // Find owner or first admin
+      const owner = metadata.owner || metadata.participants.find(p => p.admin)?.id;
 
       const text = `
 📌 *Group Name:* ${metadata.subject}
