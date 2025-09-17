@@ -1,22 +1,34 @@
 module.exports = {
   name: "hidetag",
+  description: "Send a hidden message tagging all members in the group",
+  category: "👥 Group",
   async execute(sock, m) {
     try {
-      if (!m.key.remoteJid.endsWith("@g.us")) 
-        return sock.sendMessage(m.key.remoteJid, { text: "❌ Hii command ni ya group tu!" });
-
       const groupId = m.key.remoteJid;
+      if (!groupId.endsWith("@g.us")) {
+        return sock.sendMessage(groupId, { text: "❌ Hii command ni ya group tu!" });
+      }
+
       const metadata = await sock.groupMetadata(groupId);
 
-      // Custom message au default
-      const args = m.body.split(" ").slice(1);
-      const text = args.length > 0 ? args.join(" ") : "👋 Hii ni hidden message kwa wote!";
+      // Get message text safely
+      let text = "👋 Hii ni hidden message kwa wote!";
+      if (m.message?.conversation) {
+        const args = m.message.conversation.split(" ").slice(1);
+        if (args.length > 0) text = args.join(" ");
+      } else if (m.message?.extendedTextMessage?.text) {
+        const args = m.message.extendedTextMessage.text.split(" ").slice(1);
+        if (args.length > 0) text = args.join(" ");
+      }
 
-      // Wote participants
+      // All participants IDs
       const mentions = metadata.participants.map(p => p.id);
 
-      // Message inatumwa bila kuonekana na mentions
-      await sock.sendMessage(groupId, { text, mentions });
+      // Send hidden tag message
+      await sock.sendMessage(groupId, {
+        text,
+        contextInfo: { mentionedJid: mentions }
+      });
 
     } catch (err) {
       console.error("Hidetag Command Error:", err);
