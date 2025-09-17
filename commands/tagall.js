@@ -4,20 +4,28 @@ module.exports = {
   category: "👥 Group",
   async execute(sock, m) {
     try {
-      // Hii command ni ya group tu
-      if (!m.key.remoteJid.endsWith("@g.us")) 
-        return sock.sendMessage(m.key.remoteJid, { text: "❌ This command is for groups only!" });
-
+      // Check if message is from a group
       const groupId = m.key.remoteJid;
+      if (!groupId.endsWith("@g.us")) {
+        return sock.sendMessage(groupId, { text: "❌ This command is for groups only!" });
+      }
+
       const metadata = await sock.groupMetadata(groupId);
 
-      // Custom message au default
-      const args = m.body.split(" ").slice(1);
-      const text = args.length > 0 ? args.join(" ") : "👋 Hello everyone!";
+      // Get message text from m.message
+      let text = "👋 Hello everyone!";
+      if (m.message?.conversation) {
+        const args = m.message.conversation.split(" ").slice(1);
+        if (args.length > 0) text = args.join(" ");
+      } else if (m.message?.extendedTextMessage?.text) {
+        const args = m.message.extendedTextMessage.text.split(" ").slice(1);
+        if (args.length > 0) text = args.join(" ");
+      }
 
-      // Wote participants
+      // Get all participant IDs
       const mentions = metadata.participants.map(p => p.id);
 
+      // Send message with mentions
       await sock.sendMessage(groupId, { text, mentions });
 
     } catch (err) {
