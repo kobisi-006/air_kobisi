@@ -6,6 +6,7 @@ require("dotenv").config();
 const fs = require("fs");
 const path = require("path");
 const P = require("pino");
+const os = require("os");
 const express = require("express");
 const qrcode = require("qrcode-terminal");
 const axios = require("axios");
