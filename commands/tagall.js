@@ -1,15 +1,25 @@
 module.exports = {
   name: "tagall",
-  description: "📢 Tag kila mtu kwa message moja",
   async execute(sock, m) {
-    const from = m.key.remoteJid;
-    if (!from.endsWith("@g.us")) return sock.sendMessage(from, { text: "Group pekee!" });
+    try {
+      if (!m.key.remoteJid.endsWith("@g.us")) 
+        return sock.sendMessage(m.key.remoteJid, { text: "❌ Hii command ni ya group tu!" });
 
-    const metadata = await sock.groupMetadata(from);
-    const members = metadata.participants.map(p => p.id);
-    const text = `📢 *Tagging All Members (${members.length})*\n\n` +
-                 members.map(m => `@${m.split("@")[0]}`).join(" ");
+      const groupId = m.key.remoteJid;
+      const metadata = await sock.groupMetadata(groupId);
 
-    await sock.sendMessage(from, { text, mentions: members });
-  },
+      // Custom message au default
+      const args = m.body.split(" ").slice(1);
+      const text = args.length > 0 ? args.join(" ") : "👋 Hii ni tag kwa wote members!";
+
+      // Wote participants
+      const mentions = metadata.participants.map(p => p.id);
+
+      await sock.sendMessage(groupId, { text, mentions });
+
+    } catch (err) {
+      console.error("TagAll Command Error:", err);
+      await sock.sendMessage(m.key.remoteJid, { text: "⚠️ Tatizo limetokea wakati wa tagall." });
+    }
+  }
 };
