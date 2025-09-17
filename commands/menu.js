@@ -3,16 +3,10 @@ const path = require("path");
 
 module.exports = {
   name: "menu",
-  description: "Displays a categorized modern menu with image",
+  description: "Displays a flat modern menu without image",
   async execute(sock, m, prefix = ".") {
     try {
       const from = m.key.remoteJid;
-
-      // Image path
-      const imagePath = path.join(__dirname, "Ommy", "FB_IMG_1755075806264.jpg");
-      if (!fs.existsSync(imagePath)) {
-        return sock.sendMessage(from, { text: "⚠️ Menu image not found in Ommy folder!" });
-      }
 
       // Commands folder
       const commandsPath = path.join(__dirname);
@@ -38,7 +32,6 @@ module.exports = {
         try {
           const cmd = require(path.join(commandsPath, file));
           if (cmd.name) {
-            // Assign category (if cmd.category exists) or Others
             const cat = cmd.category && categories[cmd.category] ? cmd.category : "📁 Others";
             categories[cat].push(`🔹 ${prefix}${cmd.name} - ${cmd.description || "No description"}`);
           }
@@ -47,7 +40,7 @@ module.exports = {
         }
       }
 
-      // Build message
+      // Build menu message
       let menuText = `╭━━━✧★ Welcome to I.R.N Tech Bot ★✧━━━\n`;
       for (const [catName, cmds] of Object.entries(categories)) {
         if (cmds.length > 0) {
@@ -58,11 +51,8 @@ module.exports = {
       }
       menuText += `\n╰━━━✧★ Powered by Irene Tech ★✧━━━`;
 
-      // Send menu with image
-      await sock.sendMessage(from, {
-        image: { url: imagePath },
-        caption: menuText
-      });
+      // Send menu as text only
+      await sock.sendMessage(from, { text: menuText });
 
     } catch (err) {
       console.error("Menu Command Error:", err);
