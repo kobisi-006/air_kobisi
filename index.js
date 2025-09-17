@@ -134,14 +134,23 @@ async function startBot() {
                 }, 500); // 0.5s delay
             }
 
-            // ==== ANTI-LINK SYSTEM WITH PREVIEW (RATE-LIMITED) ====
-         if (ANTI_LINK && from.endsWith("@g.us")) {
+         
+         // ==== ANTI-LINK SYSTEM WITH OWNER & ADMIN CHECK ====
+if (ANTI_LINK && from.endsWith("@g.us")) {
     const linkPattern = /(https?:\/\/[^\s]+|www\.[^\s]+|wa\.me\/|chat\.whatsapp\.com|facebook\.com\/|fb\.com\/|instagram\.com\/|youtu\.be\/|youtube\.com\/|tiktok\.com\/)/i;
     const foundLinks = text.match(linkPattern);
 
     if (foundLinks) {
         setTimeout(async () => {
             try {
+                // Get group participants and their admin status
+                const metadata = await sock.groupMetadata(from);
+                const participant = metadata.participants.find(p => p.id === sender);
+                const isAdmin = participant?.admin === "admin" || participant?.admin === "superadmin";
+
+                // Skip if sender is bot owner or admin
+                if (isOwner || isAdmin) return;
+
                 // Delete message containing link
                 await sock.sendMessage(from, { delete: m.key });
 
@@ -149,24 +158,24 @@ async function startBot() {
                 warnings[sender] = (warnings[sender] || 0) + 1;
                 const remaining = 3 - warnings[sender];
 
+                // Warn message with emoji style
                 const warnMsg = `
-||_________________/¶
-||  WARN = ${warnings[sender]}
-||  NAME = @${sender.split("@")[0]}
-||  REASON = Link sent in group
-||  COUNT WARN REMAINS = ${remaining}
-||  link deleted by irenloven tech
-||  do not send Links in this group
-||by BOSS GIRL TECH
-||________________/¶
+🚨 *ANTI-LINK WARNING* 🚨
+👤 User: @${sender.split("@")[0]}
+⚠️ Reason: Sent prohibited link
+📝 Warnings: ${warnings[sender]} / 3
+⏳ Remaining before removal: ${remaining}
+💬 Please avoid sending links in this group
+🔗 Deleted by: *${BOT_NAME}*
                 `.trim();
 
                 await sock.sendMessage(from, { text: warnMsg, mentions: [sender] });
 
+                // Remove user after 3 warnings
                 if (warnings[sender] >= 3) {
                     await sock.groupParticipantsUpdate(from, [sender], "remove");
                     await sock.sendMessage(from, {
-                        text: `🚫 @${sender.split("@")[0]} removed (3 warnings)`,
+                        text: `❌ @${sender.split("@")[0]} removed from group (3 warnings)`,
                         mentions: [sender],
                     });
                     warnings[sender] = 0;
@@ -175,7 +184,7 @@ async function startBot() {
             } catch (e) {
                 console.error("Anti-Link Error:", e.message);
             }
-        }, 500);
+        }, 500); // Delay 0.5s
     }
 }
             // ==== COMMANDS ====
