@@ -12,7 +12,7 @@ module.exports = {
       const metadata = await sock.groupMetadata(groupId);
 
       // Get message text safely
-      let text = "👋 Hii ni hidden message kwa wote!";
+      let text = "👋 mbona mumejichokea hivo 😂!";
       if (m.message?.conversation) {
         const args = m.message.conversation.split(" ").slice(1);
         if (args.length > 0) text = args.join(" ");
