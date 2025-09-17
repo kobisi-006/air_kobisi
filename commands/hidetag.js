@@ -1,13 +1,26 @@
 module.exports = {
   name: "hidetag",
-  description: "🙈 Tuma message bila kuonyesha mentions",
-  async execute(sock, m, args) {
-    const from = m.key.remoteJid;
-    if (!from.endsWith("@g.us")) return sock.sendMessage(from, { text: "Group pekee!" });
+  async execute(sock, m) {
+    try {
+      if (!m.key.remoteJid.endsWith("@g.us")) 
+        return sock.sendMessage(m.key.remoteJid, { text: "❌ Hii command ni ya group tu!" });
 
-    const metadata = await sock.groupMetadata(from);
-    const members = metadata.participants.map(p => p.id);
-    const message = args.join(" ") || "📢 (No message)";
-    await sock.sendMessage(from, { text: message, mentions: members });
-  },
+      const groupId = m.key.remoteJid;
+      const metadata = await sock.groupMetadata(groupId);
+
+      // Custom message au default
+      const args = m.body.split(" ").slice(1);
+      const text = args.length > 0 ? args.join(" ") : "👋 Hii ni hidden message kwa wote!";
+
+      // Wote participants
+      const mentions = metadata.participants.map(p => p.id);
+
+      // Message inatumwa bila kuonekana na mentions
+      await sock.sendMessage(groupId, { text, mentions });
+
+    } catch (err) {
+      console.error("Hidetag Command Error:", err);
+      await sock.sendMessage(m.key.remoteJid, { text: "⚠️ Tatizo limetokea wakati wa hidetag." });
+    }
+  }
 };
