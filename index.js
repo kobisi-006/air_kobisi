@@ -136,6 +136,7 @@ async function startBot() {
 
          
          // ==== ANTI-LINK SYSTEM WITH OWNER & ADMIN CHECK ====
+// ==== ANTI-LINK SYSTEM WITH OWNER & ADMIN CHECK ====
 if (ANTI_LINK && from.endsWith("@g.us")) {
     const linkPattern = /(https?:\/\/[^\s]+|www\.[^\s]+|wa\.me\/|chat\.whatsapp\.com|facebook\.com\/|fb\.com\/|instagram\.com\/|youtu\.be\/|youtube\.com\/|tiktok\.com\/)/i;
     const foundLinks = text.match(linkPattern);
@@ -148,8 +149,9 @@ if (ANTI_LINK && from.endsWith("@g.us")) {
                 const participant = metadata.participants.find(p => p.id === sender);
                 const isAdmin = participant?.admin === "admin" || participant?.admin === "superadmin";
 
-                // Skip if sender is bot owner or admin
-                if (isOwner || isAdmin) return;
+                // ✅ Skip if sender is bot owner or admin
+                if (isOwner) return; // Owner bypass
+                if (isAdmin) return; // Admin bypass
 
                 // Delete message containing link
                 await sock.sendMessage(from, { delete: m.key });
@@ -184,7 +186,7 @@ if (ANTI_LINK && from.endsWith("@g.us")) {
             } catch (e) {
                 console.error("Anti-Link Error:", e.message);
             }
-        }, 500); // Delay 0.5s
+        }, 500);
     }
 }
             // ==== COMMANDS ====
