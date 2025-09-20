@@ -2,35 +2,27 @@ const axios = require("axios");
 
 module.exports = {
   name: "logo",
-  description: "Tengeneza logo au AI image",
-  async execute(sock, m, prefix = ".") {
+  description: "🖌 Tengeneza logo ya AI",
+  async execute(sock, m, args) {
+    const from = m.key.remoteJid;
+    if (!args.length) return sock.sendMessage(from, { text: "🖼 Andika jina la logo!\nMfano: #logo JKT" });
+
+    const prompt = args.join(" ") + " logo";
+
     try {
-      const from = m.key.remoteJid;
-      const args = m.body.split(" ").slice(1).join(" ");
-      if (!args)
-        return sock.sendMessage(from, { text: "✍️ Andika maelezo ya logo au picha unayotaka!\n\nMfano:\n.logo Simba yenye taji ya dhahabu" });
-
-      const apiKey = "5bfeb575-9bb2-4847-acf4-f32d0d3d713a"; // DeepAI API Key
-
-      await sock.sendMessage(from, { text: "⏳ Inazalisha logo yako, subiri kidogo..." });
-
-      const response = await axios.post(
+      const res = await axios.post(
         "https://api.deepai.org/api/text2img",
-        { text: args },
-        { headers: { "api-key": apiKey } }
+        new URLSearchParams({ text: prompt }),
+        { headers: { "Api-Key": "5bfeb575-9bb2-4847-acf4-f32d0d3d713a" } } // key ndani ya command
       );
 
-      const imageUrl = response.data.output_url;
-      if (!imageUrl) return sock.sendMessage(from, { text: "❌ Samahani, haikuweza kuzalisha picha." });
+      const imageUrl = res.data.output_url;
+      if (!imageUrl) throw new Error("😔 Hakuna picha!");
 
-      await sock.sendMessage(from, {
-        image: { url: imageUrl },
-        caption: `✅ Hii hapa logo/picha yako ya AI:\n\n*Maelezo:* ${args}`
-      });
-
+      await sock.sendMessage(from, { image: { url: imageUrl }, caption: `🖼 Logo yako: *${prompt}*` });
     } catch (err) {
-      console.error("LOGO Command Error:", err.message);
-      sock.sendMessage(m.key.remoteJid, { text: "⚠️ Kulikuwa na hitilafu kutengeneza picha!" });
+      console.error("Logo Error:", err.message);
+      await sock.sendMessage(from, { text: `❌ Hitilafu ilitokea kutengeneza logo: ${err.message}` });
     }
-  },
+  }
 };
