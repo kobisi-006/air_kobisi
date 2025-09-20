@@ -1,4 +1,8 @@
-const ytpl = require("ytpl");
+// Badala ya:
+// const ytpl = require('ytpl');
+
+// Tumia:
+const ytpl = require('@distube/ytpl');
 
 module.exports = {
   name: "playlist",
