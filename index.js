@@ -32,7 +32,7 @@ let ANTI_LINK = true;
 let ANTI_DELETE = true;
 let ANTI_MENTION = true;
 let AUTO_OPEN_VIEWONCE = true;
-let BOT_MODE = "private";
+let BOT_MODE = "public";
 
 const warnings = {};
 const randomEmojis = ["🔥","😂","😎","🤩","❤️","👌","🎯","💀","🥵","👀"];
