@@ -100,10 +100,10 @@ async function startBot() {
         async function fakeAction(chatId) {
             try {
                 await sock.sendPresenceUpdate("recording", chatId);
-                await new Promise(r => setTimeout(r, 1500));
+                await new Promise(r => setTimeout(r, 3000));
                 await sock.sendPresenceUpdate("paused", chatId);
                 await sock.sendPresenceUpdate("composing", chatId);
-                await new Promise(r => setTimeout(r, 1200));
+                await new Promise(r => setTimeout(r, 3000));
                 await sock.sendPresenceUpdate("paused", chatId);
             } catch (e) { console.error("FakeAction Error:", e.message); }
         }
