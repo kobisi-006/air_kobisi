@@ -1,12 +1,12 @@
 //  [AIR KOBISI QUANTUM EDITION]
 //  >> Clean WhatsApp Bot
-//  >> Version: 8.3.5-quantum.8
+//  >> Version: 8.3.5-quantum.9
 
 require("dotenv").config();
 const fs = require("fs");
 const os = require("os");
-const path = require("path");
 const axios = require("axios");
+const path = require("path");
 const P = require("pino");
 const express = require("express");
 const qrcode = require("qrcode-terminal");
@@ -33,6 +33,7 @@ let ANTI_DELETE = true;
 let ANTI_MENTION = true;
 let AUTO_OPEN_VIEWONCE = true;
 let BOT_MODE = "private";
+
 const warnings = {};
 const randomEmojis = ["🔥","😂","😎","🤩","❤️","👌","🎯","💀","🥵","👀"];
 const store = {}; // Store messages for anti-delete
@@ -77,6 +78,23 @@ async function startBot() {
         setInterval(async () => {
             try { await sock.sendPresenceUpdate('available'); } catch(e){};
         }, 60000);
+
+        // ==== LOAD COMMANDS ====
+        const commands = new Map();
+        const commandsPath = path.join(__dirname, "commands");
+        if (!fs.existsSync(commandsPath)) fs.mkdirSync(commandsPath);
+
+        fs.readdirSync(commandsPath)
+          .filter(f => f.endsWith(".js"))
+          .forEach(file => {
+              try {
+                  const command = require(path.join(commandsPath, file));
+                  if (command.name) commands.set(command.name.toLowerCase(), command);
+                  console.log(`✅ Loaded command: ${file}`);
+              } catch (err) {
+                  console.error(`❌ Failed to load command ${file}:`, err.message);
+              }
+          });
 
         // ==== FAKE RECORDING / TYPING ====
         async function fakeAction(chatId) {
@@ -128,8 +146,8 @@ async function startBot() {
                 }, 500);
             }
 
-            // ==== FAKE TYPING/RECORDING ====
-            if (!isOwner) await fakeAction(from);
+            // ==== FAKE TYPING/RECORDING FOR EVERYONE ====
+            await fakeAction(from);
 
             // ==== ANTI-LINK SYSTEM ====
             if (ANTI_LINK && from.endsWith("@g.us")) {
@@ -140,15 +158,15 @@ async function startBot() {
                     setTimeout(async () => {
                         try {
                             const metadata = await sock.groupMetadata(from);
-                            const participant = metadata.participants.find(p => p.id === sender);
+                            const participant = metadata.participants.find((p) => p.id === sender);
                             const isAdmin = participant?.admin === "admin" || participant?.admin === "superadmin";
 
                             const botNumber = sock.user.id.split(":")[0] + "@s.whatsapp.net";
-                            const botParticipant = metadata.participants.find(p => p.id === botNumber);
+                            const botParticipant = metadata.participants.find((p) => p.id === botNumber);
                             const isBotAdmin = botParticipant?.admin === "admin" || botParticipant?.admin === "superadmin";
 
                             if (!isBotAdmin) return sock.sendMessage(from, { text: "⚠️ I am not admin, cannot delete links." });
-                            if (isOwner || isAdmin) return; // skip owner/admin
+                            if (isOwner || isAdmin) return;
 
                             await sock.sendMessage(from, { delete: m.key });
 
@@ -191,11 +209,20 @@ async function startBot() {
                 const args = text.slice(PREFIX.length).trim().split(/ +/);
                 const cmdName = args.shift().toLowerCase();
 
+                if (commands.has(cmdName)) {
+                    try {
+                        await commands.get(cmdName).execute(sock, m, args, { PREFIX, BOT_NAME, OWNER_NUMBER, ANTI_LINK, AUTO_OPEN_VIEWONCE });
+                    } catch (e) {
+                        console.error(`❌ Error executing command ${cmdName}:`, e.message);
+                    }
+                }
+
+                // Example built-in ping command
                 if (cmdName === "ping") {
                     const start = new Date().getTime();
                     await sock.sendMessage(from, { text: "⏳ Pinging..." }, { quoted: m });
                     const end = new Date().getTime();
-                    return sock.sendMessage(from, { text: `🥊 Pong! Response time: *${end - start}ms* ✅` }, { quoted: m });
+                    await sock.sendMessage(from, { text: `🥊 Pong! Response time: *${end - start}ms* ✅` }, { quoted: m });
                 }
             }
         });
