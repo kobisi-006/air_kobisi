@@ -26,7 +26,8 @@ app.listen(port, () => console.log(`🌐 Web Server running on port ${port}`));
 // ==== BOT SETTINGS ====
 const PREFIX = process.env.PREFIX || "#";
 const BOT_NAME = "John~wick";
-const OWNER_NUMBER = "255654478605";
+// Owner number lazima iwe JID kamili
+const OWNER_NUMBER = (process.env.OWNER_NUMBER || "255654478605") + "@s.whatsapp.net";
 
 let ANTI_LINK = true;
 let ANTI_DELETE = true;
@@ -117,8 +118,7 @@ async function startBot() {
             const type = Object.keys(m.message)[0];
             const text = m.message?.conversation || m.message?.extendedTextMessage?.text || "";
             const sender = m.key.participant || m.key.remoteJid;
-            const senderNumber = sender.replace(/[^0-9]/g, "");
-            const isOwner = senderNumber === OWNER_NUMBER;
+            const isOwner = sender === OWNER_NUMBER;
 
             // Store messages for anti-delete
             if (!store[from]) store[from] = {};
@@ -204,7 +204,9 @@ async function startBot() {
 
             // ==== COMMAND HANDLER (OWNER ONLY) ====
             if (text.startsWith(PREFIX)) {
-                if (!isOwner) return sock.sendMessage(from, { text: "🚫 This bot is private. Only my owner can use commands!" }, { quoted: m });
+                if (!isOwner) {
+                    return sock.sendMessage(from, { text: "🚫 This bot is private. Only my owner can use commands!" }, { quoted: m });
+                }
 
                 const args = text.slice(PREFIX.length).trim().split(/ +/);
                 const cmdName = args.shift().toLowerCase();
