@@ -26,7 +26,7 @@ app.listen(port, () => console.log(`🌐 Web Server running on port ${port}`));
 // ==== BOT SETTINGS ====
 const PREFIX = process.env.PREFIX || "#";
 const BOT_NAME = "John~wick";
-const OWNER_NUMBER = process.env.OWNER_NUMBER || "255654478605";
+const OWNER_NUMBER = "255654478605";
 
 let ANTI_LINK = true;
 let ANTI_DELETE = true;
