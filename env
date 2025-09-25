@@ -1,0 +1,22 @@
+# ==========================
+#  BEN WHITTAKER TECH BOT
+#  AIR KOBISI QUANTUM EDITION
+# ==========================
+
+# Prefix ya commands
+PREFIX=#
+
+# Jina la bot
+BOT_NAME=John~wick
+
+# Namba ya owner (weka yako bila @s.whatsapp.net)
+OWNER_NUMBER=255654478605 
+
+# Mode ya bot: public/private
+BOT_MODE=private
+
+# Feature flags
+ANTI_LINK=on
+ANTI_DELETE=on
+ANTI_MENTION=on
+AUTO_OPEN_VIEWONCE=on
