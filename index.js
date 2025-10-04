@@ -26,14 +26,12 @@ app.listen(port, () => console.log(`🌐 Web Server running on port ${port}`));
 // ==== BOT SETTINGS ====
 const PREFIX = process.env.PREFIX || "#";
 const BOT_NAME = "John~wick";
-// Owner number lazima iwe JID kamili
 const OWNER_NUMBER = (process.env.OWNER_NUMBER || "255654478605") + "@s.whatsapp.net";
 
 let ANTI_LINK = true;
 let ANTI_DELETE = true;
 let ANTI_MENTION = true;
 let AUTO_OPEN_VIEWONCE = true;
-let BOT_MODE = "private ";
 
 const warnings = {};
 const randomEmojis = ["🔥","😂","😎","🤩","❤️","👌","🎯","💀","🥵","👀"];
@@ -202,10 +200,17 @@ async function startBot() {
                 await sock.sendMessage(from, { delete: m.key });
             }
 
-            // ==== COMMAND HANDLER (OWNER ONLY) ====
+            // ==== COMMAND HANDLER (OWNER + GROUP ADMINS) ====
             if (text.startsWith(PREFIX)) {
-                if (!isOwner) {
-                    return sock.sendMessage(from, { text: "🚫 This bot is private. Only my owner can use commands!" }, { quoted: m });
+                let isAdmin = false;
+                if (from.endsWith("@g.us")) {
+                    const metadata = await sock.groupMetadata(from);
+                    const participant = metadata.participants.find((p) => p.id === sender);
+                    isAdmin = participant?.admin === "admin" || participant?.admin === "superadmin";
+                }
+
+                if (!isOwner && !isAdmin) {
+                    return sock.sendMessage(from, { text: "🚫 Only owner or group admins can use commands!" }, { quoted: m });
                 }
 
                 const args = text.slice(PREFIX.length).trim().split(/ +/);
@@ -219,7 +224,7 @@ async function startBot() {
                     }
                 }
 
-                // Example built-in ping command
+                // Built-in ping command
                 if (cmdName === "ping") {
                     const start = new Date().getTime();
                     await sock.sendMessage(from, { text: "⏳ Pinging..." }, { quoted: m });
