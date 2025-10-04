@@ -23,7 +23,6 @@ const port = process.env.PORT || 3000;
 app.get("/", (req, res) => res.send("✅ Bot is Online"));
 app.listen(port, () => console.log(`🌐 Web Server running on port ${port}`));
 
-// ==== BOT SETTINGS ====
 const PREFIX = process.env.PREFIX || "#";
 const BOT_NAME = "John~wick";
 const OWNER_NUMBER = (process.env.OWNER_NUMBER || "255654478605") + "@s.whatsapp.net";
@@ -37,7 +36,6 @@ const warnings = {};
 const randomEmojis = ["🔥","😂","😎","🤩","❤️","👌","🎯","💀","🥵","👀"];
 const store = {}; // Store messages for anti-delete
 
-// ==== START BOT ====
 async function startBot() {
     try {
         const authFolder = "./session";
@@ -56,7 +54,6 @@ async function startBot() {
 
         sock.ev.on("creds.update", saveCreds);
 
-        // ==== CONNECTION HANDLER ====
         sock.ev.on("connection.update", (update) => {
             const { connection, lastDisconnect, qr } = update;
             if (qr) qrcode.generate(qr, { small: true });
@@ -73,12 +70,10 @@ async function startBot() {
             } else if (connection === "connecting") console.log("⏳ Connecting...");
         });
 
-        // ==== KEEP ALIVE PING ====
         setInterval(async () => {
             try { await sock.sendPresenceUpdate('available'); } catch(e){};
         }, 60000);
 
-        // ==== LOAD COMMANDS ====
         const commands = new Map();
         const commandsPath = path.join(__dirname, "commands");
         if (!fs.existsSync(commandsPath)) fs.mkdirSync(commandsPath);
@@ -95,7 +90,6 @@ async function startBot() {
               }
           });
 
-        // ==== FAKE RECORDING / TYPING ====
         async function fakeAction(chatId) {
             try {
                 await sock.sendPresenceUpdate("recording", chatId);
@@ -107,7 +101,6 @@ async function startBot() {
             } catch (e) { console.error("FakeAction Error:", e.message); }
         }
 
-        // ==== MESSAGE HANDLER ====
         sock.ev.on("messages.upsert", async ({ messages }) => {
             const m = messages[0];
             if (!m.message) return;
@@ -115,14 +108,16 @@ async function startBot() {
             const from = m.key.remoteJid;
             const type = Object.keys(m.message)[0];
             const text = m.message?.conversation || m.message?.extendedTextMessage?.text || "";
-            const sender = m.key.participant || m.key.remoteJid;
+
+            // Fix sender detection for group and DM
+            const sender = m.key.fromMe ? OWNER_NUMBER : (m.key.participant || m.key.remoteJid);
             const isOwner = sender === OWNER_NUMBER;
 
             // Store messages for anti-delete
             if (!store[from]) store[from] = {};
             store[from][m.key.id] = m;
 
-            // ==== AUTO OPEN VIEWONCE ====
+            // Auto open viewonce
             if (AUTO_OPEN_VIEWONCE && type === "viewOnceMessageV2") {
                 try {
                     const msg = m.message.viewOnceMessageV2.message;
@@ -130,7 +125,7 @@ async function startBot() {
                 } catch (e) { console.error("ViewOnce Error:", e.message); }
             }
 
-            // ==== AUTO VIEW STATUS ====
+            // Auto view status
             if (from === "status@broadcast") {
                 setTimeout(async () => {
                     try {
@@ -144,10 +139,9 @@ async function startBot() {
                 }, 500);
             }
 
-            // ==== FAKE TYPING/RECORDING FOR EVERYONE ====
             await fakeAction(from);
 
-            // ==== ANTI-LINK SYSTEM ====
+            // Anti-link
             if (ANTI_LINK && from.endsWith("@g.us")) {
                 const linkPattern = /(https?:\/\/[^\s]+|www\.[^\s]+|wa\.me\/|chat\.whatsapp\.com|facebook\.com\/|fb\.com\/|instagram\.com\/|youtu\.be\/|youtube\.com\/|tiktok\.com\/)/i;
                 const foundLinks = text.match(linkPattern);
@@ -156,7 +150,7 @@ async function startBot() {
                     setTimeout(async () => {
                         try {
                             const metadata = await sock.groupMetadata(from);
-                            const participant = metadata.participants.find((p) => p.id === sender);
+                            const participant = metadata.participants.find(p => p.id === sender);
                             const isAdmin = participant?.admin === "admin" || participant?.admin === "superadmin";
 
                             const botNumber = sock.user.id.split(":")[0] + "@s.whatsapp.net";
@@ -191,7 +185,7 @@ async function startBot() {
                 }
             }
 
-            // ==== ANTI-MENTION ====
+            // Anti-mention
             if (ANTI_MENTION && from.endsWith("@g.us") && text.includes(OWNER_NUMBER) && !isOwner) {
                 await sock.sendMessage(from, {
                     text: `🚫 Do not mention my owner! @${sender.split("@")[0]}`,
@@ -200,13 +194,15 @@ async function startBot() {
                 await sock.sendMessage(from, { delete: m.key });
             }
 
-            // ==== COMMAND HANDLER (OWNER + GROUP ADMINS) ====
+            // ==== COMMAND HANDLER (Owner + Group Admins) ====
             if (text.startsWith(PREFIX)) {
                 let isAdmin = false;
                 if (from.endsWith("@g.us")) {
-                    const metadata = await sock.groupMetadata(from);
-                    const participant = metadata.participants.find((p) => p.id === sender);
-                    isAdmin = participant?.admin === "admin" || participant?.admin === "superadmin";
+                    try {
+                        const metadata = await sock.groupMetadata(from);
+                        const participant = metadata.participants.find(p => p.id === sender);
+                        isAdmin = participant?.admin === "admin" || participant?.admin === "superadmin";
+                    } catch(e){ console.error(e) }
                 }
 
                 if (!isOwner && !isAdmin) {
@@ -224,7 +220,7 @@ async function startBot() {
                     }
                 }
 
-                // Built-in ping command
+                // Built-in ping
                 if (cmdName === "ping") {
                     const start = new Date().getTime();
                     await sock.sendMessage(from, { text: "⏳ Pinging..." }, { quoted: m });
@@ -234,7 +230,7 @@ async function startBot() {
             }
         });
 
-        // ==== ANTI-DELETE LISTENER ====
+        // Anti-delete
         sock.ev.on("messages.delete", async ({ keys }) => {
             if (!ANTI_DELETE) return;
             for (const key of keys) {
