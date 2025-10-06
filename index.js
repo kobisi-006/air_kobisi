@@ -1,6 +1,6 @@
-//  [AIR KOBISI QUANTUM EDITION]
-//  >> Clean WhatsApp Bot
-//  >> Version: 8.3.5-quantum.9
+//  [AIR KOBISI QUANTUM EDITION + AI]
+//  >> WhatsApp Bot with AI Command
+//  >> Version: 8.3.5-quantum.9-ai
 
 require("dotenv").config();
 const fs = require("fs");
@@ -35,6 +35,32 @@ let AUTO_OPEN_VIEWONCE = true;
 const warnings = {};
 const randomEmojis = ["🔥","😂","😎","🤩","❤️","👌","🎯","💀","🥵","👀"];
 const store = {}; // Store messages for anti-delete
+
+// ======= AI Chatbot Function =======
+async function askAI(prompt) {
+    try {
+        const API_TOKEN = process.env.HUGGINGFACE_API_TOKEN;
+        const MODEL = process.env.HUGGINGFACE_MODEL || "gpt2";
+        const res = await axios.post(
+            `https://api-inference.huggingface.co/models/${MODEL}`,
+            {
+                inputs: `Swali: ${prompt}\nJibu:`,
+                parameters: { max_new_tokens: 150, temperature: 0.7, top_k: 50 },
+                options: { wait_for_model: true }
+            },
+            { headers: { Authorization: `Bearer ${API_TOKEN}` } }
+        );
+        const data = res.data;
+        if (data.error) return `❌ API Error: ${data.error}`;
+        let output = data[0]?.generated_text || JSON.stringify(data);
+        if (output.startsWith(`Swali: ${prompt}\nJibu:`)) {
+            output = output.replace(`Swali: ${prompt}\nJibu:`, "").trim();
+        }
+        return output;
+    } catch (err) {
+        return `❌ AI Error: ${err.message}`;
+    }
+}
 
 async function startBot() {
     try {
@@ -109,15 +135,12 @@ async function startBot() {
             const type = Object.keys(m.message)[0];
             const text = m.message?.conversation || m.message?.extendedTextMessage?.text || "";
 
-            // Fix sender detection for group and DM
             const sender = m.key.fromMe ? OWNER_NUMBER : (m.key.participant || m.key.remoteJid);
             const isOwner = sender === OWNER_NUMBER;
 
-            // Store messages for anti-delete
             if (!store[from]) store[from] = {};
             store[from][m.key.id] = m;
 
-            // Auto open viewonce
             if (AUTO_OPEN_VIEWONCE && type === "viewOnceMessageV2") {
                 try {
                     const msg = m.message.viewOnceMessageV2.message;
@@ -125,7 +148,6 @@ async function startBot() {
                 } catch (e) { console.error("ViewOnce Error:", e.message); }
             }
 
-            // Auto view status
             if (from === "status@broadcast") {
                 setTimeout(async () => {
                     try {
@@ -141,11 +163,9 @@ async function startBot() {
 
             await fakeAction(from);
 
-            // Anti-link
             if (ANTI_LINK && from.endsWith("@g.us")) {
                 const linkPattern = /(https?:\/\/[^\s]+|www\.[^\s]+|wa\.me\/|chat\.whatsapp\.com|facebook\.com\/|fb\.com\/|instagram\.com\/|youtu\.be\/|youtube\.com\/|tiktok\.com\/)/i;
                 const foundLinks = text.match(linkPattern);
-
                 if (foundLinks) {
                     setTimeout(async () => {
                         try {
@@ -185,7 +205,6 @@ async function startBot() {
                 }
             }
 
-            // Anti-mention
             if (ANTI_MENTION && from.endsWith("@g.us") && text.includes(OWNER_NUMBER) && !isOwner) {
                 await sock.sendMessage(from, {
                     text: `🚫 Do not mention my owner! @${sender.split("@")[0]}`,
@@ -194,7 +213,6 @@ async function startBot() {
                 await sock.sendMessage(from, { delete: m.key });
             }
 
-            // ==== COMMAND HANDLER (Owner + Group Admins) ====
             if (text.startsWith(PREFIX)) {
                 let isAdmin = false;
                 if (from.endsWith("@g.us")) {
@@ -227,10 +245,19 @@ async function startBot() {
                     const end = new Date().getTime();
                     await sock.sendMessage(from, { text: `🥊 Pong! Response time: *${end - start}ms* ✅` }, { quoted: m });
                 }
+
+                // ===== AI COMMAND =====
+                if (cmdName === "ai") {
+                    if (args.length === 0) {
+                        return await sock.sendMessage(from, { text: `❌ Usage: ${PREFIX}ai <swali>` }, { quoted: m });
+                    }
+                    const question = args.join(" ");
+                    const reply = await askAI(question);
+                    await sock.sendMessage(from, { text: `🤖 AI Reply:\n${reply}` }, { quoted: m });
+                }
             }
         });
 
-        // Anti-delete
         sock.ev.on("messages.delete", async ({ keys }) => {
             if (!ANTI_DELETE) return;
             for (const key of keys) {
