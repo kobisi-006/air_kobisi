@@ -1,282 +1,193 @@
-//  [AIR KOBISI QUANTUM EDITION + AI]
-//  >> WhatsApp Bot with AI Command
-//  >> Version: 8.3.5-quantum.9-ai
+// [BEN WHITTAKER PRIVATE AI EDITION]
+// WhatsApp Bot - Powered by Gemini AI
+// Version: 9.0.1-private-ai
 
 require("dotenv").config();
 const fs = require("fs");
-const os = require("os");
 const axios = require("axios");
 const path = require("path");
 const P = require("pino");
 const express = require("express");
 const qrcode = require("qrcode-terminal");
+const { default: makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion, DisconnectReason } = require("@whiskeysockets/baileys");
 
-const {
-    default: makeWASocket,
-    useMultiFileAuthState,
-    fetchLatestBaileysVersion,
-    DisconnectReason,
-} = require("@whiskeysockets/baileys");
+// ======= BASIC CONFIG =======
+const OWNER_NUMBER = "255654478605@s.whatsapp.net";
+const PREFIX = process.env.PREFIX || ".";
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+let ANTI_LINK = true;
+let AUTO_VIEW_STATUS = true;
+let AUTO_LIKE_STATUS = true;
+
+const randomEmojis = ["🔥","😂","😎","❤️","🤩","💯","💀","👌","🎯","🥶"];
+const featureToggles = { antilink: ANTI_LINK, autoview: AUTO_VIEW_STATUS };
+const warnings = {};
+const store = {};
 
 const app = express();
 const port = process.env.PORT || 3000;
-app.get("/", (req, res) => res.send("✅ Bot is Online"));
-app.listen(port, () => console.log(`🌐 Web Server running on port ${port}`));
+app.get("/", (_, res) => res.send("✅ Ben Whittaker AI Bot is Online"));
+app.listen(port, () => console.log(`🌐 Server active on port ${port}`));
 
-const PREFIX = process.env.PREFIX || "#";
-const BOT_NAME = "John~wick";
-const OWNER_NUMBER = (process.env.OWNER_NUMBER || "255654478605") + "@s.whatsapp.net";
-
-let ANTI_LINK = true;
-let ANTI_DELETE = true;
-let ANTI_MENTION = true;
-let AUTO_OPEN_VIEWONCE = true;
-
-const warnings = {};
-const randomEmojis = ["🔥","😂","😎","🤩","❤️","👌","🎯","💀","🥵","👀"];
-const store = {}; // Store messages for anti-delete
-
-// ======= AI Chatbot Function =======
-async function askAI(prompt) {
-    try {
-        const API_TOKEN = process.env.HUGGINGFACE_API_TOKEN;
-        const MODEL = process.env.HUGGINGFACE_MODEL || "gpt2";
-        const res = await axios.post(
-            `https://api-inference.huggingface.co/models/${MODEL}`,
-            {
-                inputs: `Swali: ${prompt}\nJibu:`,
-                parameters: { max_new_tokens: 150, temperature: 0.7, top_k: 50 },
-                options: { wait_for_model: true }
-            },
-            { headers: { Authorization: `Bearer ${API_TOKEN}` } }
-        );
-        const data = res.data;
-        if (data.error) return `❌ API Error: ${data.error}`;
-        let output = data[0]?.generated_text || JSON.stringify(data);
-        if (output.startsWith(`Swali: ${prompt}\nJibu:`)) {
-            output = output.replace(`Swali: ${prompt}\nJibu:`, "").trim();
-        }
-        return output;
-    } catch (err) {
-        return `❌ AI Error: ${err.message}`;
-    }
+// ===== GEMINI AI FUNCTION =====
+async function askGemini(prompt) {
+  try {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`;
+    const res = await axios.post(url, { contents: [{ parts: [{ text: prompt }] }] });
+    return res.data?.candidates?.[0]?.content?.parts?.[0]?.text || "⚠️ Hakuna jibu kutoka Gemini.";
+  } catch (err) {
+    return `❌ Gemini AI Error: ${err.response?.data?.error?.message || err.message}`;
+  }
 }
 
+// ===== START BOT =====
 async function startBot() {
-    try {
-        const authFolder = "./session";
-        if (!fs.existsSync(authFolder)) fs.mkdirSync(authFolder);
+  try {
+    const authDir = "./session";
+    if (!fs.existsSync(authDir)) fs.mkdirSync(authDir);
+    const { state, saveCreds } = await useMultiFileAuthState(authDir);
+    const { version } = await fetchLatestBaileysVersion();
 
-        const { state, saveCreds } = await useMultiFileAuthState(authFolder);
-        const { version } = await fetchLatestBaileysVersion();
+    const sock = makeWASocket({
+      version,
+      auth: state,
+      logger: P({ level: "silent" }),
+      browser: ["Ben Whittaker AI", "Chrome", "10.0"],
+      printQRInTerminal: true,
+    });
 
-        const sock = makeWASocket({
-            version,
-            auth: state,
-            logger: P({ level: "silent" }),
-            markOnlineOnConnect: true,
-            browser: [BOT_NAME, "Chrome", "1.0"],
-        });
+    sock.ev.on("creds.update", saveCreds);
 
-        sock.ev.on("creds.update", saveCreds);
+    sock.ev.on("connection.update", (update) => {
+      const { connection, lastDisconnect, qr } = update;
+      if (qr) qrcode.generate(qr, { small: true });
+      if (connection === "open") console.log("✅ Connected to WhatsApp!");
+      else if (connection === "close") {
+        const reason = lastDisconnect?.error?.output?.statusCode;
+        if (reason === DisconnectReason.loggedOut) {
+          console.log("🔴 Logged out. Delete ./session and scan again.");
+          process.exit(1);
+        } else {
+          console.log("♻️ Reconnecting...");
+          setTimeout(startBot, 5000);
+        }
+      }
+    });
 
-        sock.ev.on("connection.update", (update) => {
-            const { connection, lastDisconnect, qr } = update;
-            if (qr) qrcode.generate(qr, { small: true });
-            if (connection === "open") console.log("✅ WhatsApp bot connected!");
-            else if (connection === "close") {
-                const reason = lastDisconnect?.error?.output?.statusCode;
-                if (reason === DisconnectReason.loggedOut) {
-                    console.log("🚪 Session logged out. Delete ./session folder to re-login.");
-                    process.exit(1);
-                } else {
-                    console.log("❌ Connection closed, reconnecting in 5s...");
-                    setTimeout(startBot, 5000);
-                }
-            } else if (connection === "connecting") console.log("⏳ Connecting...");
-        });
+    // ===== COMMAND HANDLER =====
+    const commands = new Map();
+    const commandsPath = path.join(__dirname, "commands");
+    if (!fs.existsSync(commandsPath)) fs.mkdirSync(commandsPath);
+    fs.readdirSync(commandsPath)
+      .filter(f => f.endsWith(".js"))
+      .forEach(file => {
+        try {
+          const cmd = require(path.join(commandsPath, file));
+          if (cmd.name) commands.set(cmd.name.toLowerCase(), cmd);
+        } catch {}
+      });
 
-        setInterval(async () => {
-            try { await sock.sendPresenceUpdate('available'); } catch(e){};
-        }, 60000);
+    // ===== MESSAGE LISTENER =====
+    sock.ev.on("messages.upsert", async ({ messages }) => {
+      const m = messages[0];
+      if (!m.message) return;
+      const from = m.key.remoteJid;
+      const sender = m.key.fromMe ? OWNER_NUMBER : (m.key.participant || m.key.remoteJid);
+      const text = m.message.conversation || m.message?.extendedTextMessage?.text || "";
+      const type = Object.keys(m.message)[0];
 
-        const commands = new Map();
-        const commandsPath = path.join(__dirname, "commands");
-        if (!fs.existsSync(commandsPath)) fs.mkdirSync(commandsPath);
+      // Only Owner Can Use Bot
+      if (sender !== OWNER_NUMBER) {
+        if (text.startsWith(PREFIX)) {
+          await sock.sendMessage(from, { text: "🚫 Huna mamlaka kutumia bot hii ya Ben Whittaker." }, { quoted: m });
+        }
+        return;
+      }
 
-        fs.readdirSync(commandsPath)
-          .filter(f => f.endsWith(".js"))
-          .forEach(file => {
-              try {
-                  const command = require(path.join(commandsPath, file));
-                  if (command.name) commands.set(command.name.toLowerCase(), command);
-                  console.log(`✅ Loaded command: ${file}`);
-              } catch (err) {
-                  console.error(`❌ Failed to load command ${file}:`, err.message);
-              }
-          });
+      // Auto View + React to Status
+      if (from === "status@broadcast" && AUTO_VIEW_STATUS) {
+        setTimeout(async () => {
+          try {
+            await sock.readMessages([m.key]);
+            if (AUTO_LIKE_STATUS) {
+              const emoji = randomEmojis[Math.floor(Math.random() * randomEmojis.length)];
+              await sock.sendMessage("status@broadcast", { react: { key: m.key, text: emoji } });
+            }
+          } catch (e) {}
+        }, 500);
+      }
 
-        async function fakeAction(chatId) {
-            try {
-                await sock.sendPresenceUpdate("recording", chatId);
-                await new Promise(r => setTimeout(r, 3000));
-                await sock.sendPresenceUpdate("paused", chatId);
-                await sock.sendPresenceUpdate("composing", chatId);
-                await new Promise(r => setTimeout(r, 3000));
-                await sock.sendPresenceUpdate("paused", chatId);
-            } catch (e) { console.error("FakeAction Error:", e.message); }
+      // Store for AntiDelete
+      if (!store[from]) store[from] = {};
+      store[from][m.key.id] = m;
+
+      // AntiLink
+      if (featureToggles.antilink && from.endsWith("@g.us")) {
+        const linkPattern = /(https?:\/\/[^\s]+)/i;
+        if (linkPattern.test(text)) {
+          const metadata = await sock.groupMetadata(from);
+          const botNumber = sock.user.id.split(":")[0] + "@s.whatsapp.net";
+          const botAdmin = metadata.participants.find(p => p.id === botNumber && p.admin);
+          if (botAdmin) {
+            await sock.sendMessage(from, { delete: m.key });
+            warnings[sender] = (warnings[sender] || 0) + 1;
+            await sock.sendMessage(from, {
+              text: `🚫 *Link detected!* @${sender.split("@")[0]} Warning ${warnings[sender]}/3`,
+              mentions: [sender],
+            });
+            if (warnings[sender] >= 3) {
+              await sock.groupParticipantsUpdate(from, [sender], "remove");
+              warnings[sender] = 0;
+            }
+          }
+        }
+      }
+
+      // Command Handler
+      if (text.startsWith(PREFIX)) {
+        const args = text.slice(PREFIX.length).trim().split(/ +/);
+        const cmd = args.shift().toLowerCase();
+
+        if (cmd === "ping") {
+          await sock.sendMessage(from, { text: "🥊 Pong! Bot is active ✅" });
         }
 
-        sock.ev.on("messages.upsert", async ({ messages }) => {
-            const m = messages[0];
-            if (!m.message) return;
+        if (cmd === "ai") {
+          const prompt = args.join(" ");
+          if (!prompt) return sock.sendMessage(from, { text: "💡 Usage: !ai <swali>" });
+          const reply = await askGemini(prompt);
+          await sock.sendMessage(from, { text: `🤖 *Gemini AI Reply:*\n${reply}` });
+        }
 
-            const from = m.key.remoteJid;
-            const type = Object.keys(m.message)[0];
-            const text = m.message?.conversation || m.message?.extendedTextMessage?.text || "";
+        if (cmd === "set") {
+          const feature = (args[0] || "").toLowerCase();
+          const state = (args[1] || "").toLowerCase();
+          if (!featureToggles.hasOwnProperty(feature))
+            return sock.sendMessage(from, { text: "⚙️ Feature haipo. Mfano: !set antilink on" });
+          featureToggles[feature] = state === "on";
+          await sock.sendMessage(from, { text: `✅ ${feature} imewekwa *${state.toUpperCase()}*` });
+        }
+      }
+    });
 
-            const sender = m.key.fromMe ? OWNER_NUMBER : (m.key.participant || m.key.remoteJid);
-            const isOwner = sender === OWNER_NUMBER;
+    // AntiDelete
+    sock.ev.on("messages.delete", async ({ keys }) => {
+      for (const key of keys) {
+        const chatId = key.remoteJid;
+        const msg = store[chatId]?.[key.id];
+        if (msg) {
+          await sock.sendMessage(chatId, {
+            text: `♻️ *Anti-Delete*: @${msg.key.participant.split("@")[0]} alijaribu kufuta:\n${msg.message.conversation || "[Unsupported]"}`,
+            mentions: [msg.key.participant],
+          });
+        }
+      }
+    });
 
-            if (!store[from]) store[from] = {};
-            store[from][m.key.id] = m;
-
-            if (AUTO_OPEN_VIEWONCE && type === "viewOnceMessageV2") {
-                try {
-                    const msg = m.message.viewOnceMessageV2.message;
-                    await sock.sendMessage(from, { forward: msg }, { quoted: m });
-                } catch (e) { console.error("ViewOnce Error:", e.message); }
-            }
-
-            if (from === "status@broadcast") {
-                setTimeout(async () => {
-                    try {
-                        await sock.readMessages([m.key]);
-                        if (randomEmojis.length > 0) {
-                            await sock.sendMessage("status@broadcast", {
-                                react: { key: m.key, text: randomEmojis[Math.floor(Math.random() * randomEmojis.length)] },
-                            });
-                        }
-                    } catch (e) { console.error("Status AutoView Error:", e.message); }
-                }, 500);
-            }
-
-            await fakeAction(from);
-
-            if (ANTI_LINK && from.endsWith("@g.us")) {
-                const linkPattern = /(https?:\/\/[^\s]+|www\.[^\s]+|wa\.me\/|chat\.whatsapp\.com|facebook\.com\/|fb\.com\/|instagram\.com\/|youtu\.be\/|youtube\.com\/|tiktok\.com\/)/i;
-                const foundLinks = text.match(linkPattern);
-                if (foundLinks) {
-                    setTimeout(async () => {
-                        try {
-                            const metadata = await sock.groupMetadata(from);
-                            const participant = metadata.participants.find(p => p.id === sender);
-                            const isAdmin = participant?.admin === "admin" || participant?.admin === "superadmin";
-
-                            const botNumber = sock.user.id.split(":")[0] + "@s.whatsapp.net";
-                            const botParticipant = metadata.participants.find((p) => p.id === botNumber);
-                            const isBotAdmin = botParticipant?.admin === "admin" || botParticipant?.admin === "superadmin";
-
-                            if (!isBotAdmin) return sock.sendMessage(from, { text: "⚠️ I am not admin, cannot delete links." });
-                            if (isOwner || isAdmin) return;
-
-                            await sock.sendMessage(from, { delete: m.key });
-
-                            warnings[sender] = (warnings[sender] || 0) + 1;
-                            const remaining = 3 - warnings[sender];
-
-                            const warnMsg = `
-🚨 *ANTI-LINK WARNING* 🚨
-👤 User: @${sender.split("@")[0]}
-⚠️ Reason: Sent prohibited link
-📝 Warnings: ${warnings[sender]} / 3
-⏳ Remaining before removal: ${remaining}
-🔗 Deleted by: *${BOT_NAME}*
-                            `.trim();
-
-                            await sock.sendMessage(from, { text: warnMsg, mentions: [sender] });
-
-                            if (warnings[sender] >= 3) {
-                                await sock.groupParticipantsUpdate(from, [sender], "remove");
-                                warnings[sender] = 0;
-                            }
-                        } catch (e) { console.error("Anti-Link Error:", e.message); }
-                    }, 500);
-                }
-            }
-
-            if (ANTI_MENTION && from.endsWith("@g.us") && text.includes(OWNER_NUMBER) && !isOwner) {
-                await sock.sendMessage(from, {
-                    text: `🚫 Do not mention my owner! @${sender.split("@")[0]}`,
-                    mentions: [sender]
-                });
-                await sock.sendMessage(from, { delete: m.key });
-            }
-
-            if (text.startsWith(PREFIX)) {
-                let isAdmin = false;
-                if (from.endsWith("@g.us")) {
-                    try {
-                        const metadata = await sock.groupMetadata(from);
-                        const participant = metadata.participants.find(p => p.id === sender);
-                        isAdmin = participant?.admin === "admin" || participant?.admin === "superadmin";
-                    } catch(e){ console.error(e) }
-                }
-
-                if (!isOwner && !isAdmin) {
-                    return sock.sendMessage(from, { text: "🚫 Only owner or group admins can use commands!" }, { quoted: m });
-                }
-
-                const args = text.slice(PREFIX.length).trim().split(/ +/);
-                const cmdName = args.shift().toLowerCase();
-
-                if (commands.has(cmdName)) {
-                    try {
-                        await commands.get(cmdName).execute(sock, m, args, { PREFIX, BOT_NAME, OWNER_NUMBER, ANTI_LINK, AUTO_OPEN_VIEWONCE });
-                    } catch (e) {
-                        console.error(`❌ Error executing command ${cmdName}:`, e.message);
-                    }
-                }
-
-                // Built-in ping
-                if (cmdName === "ping") {
-                    const start = new Date().getTime();
-                    await sock.sendMessage(from, { text: "⏳ Pinging..." }, { quoted: m });
-                    const end = new Date().getTime();
-                    await sock.sendMessage(from, { text: `🥊 Pong! Response time: *${end - start}ms* ✅` }, { quoted: m });
-                }
-
-                // ===== AI COMMAND =====
-                if (cmdName === "ai") {
-                    if (args.length === 0) {
-                        return await sock.sendMessage(from, { text: `❌ Usage: ${PREFIX}ai <swali>` }, { quoted: m });
-                    }
-                    const question = args.join(" ");
-                    const reply = await askAI(question);
-                    await sock.sendMessage(from, { text: `🤖 AI Reply:\n${reply}` }, { quoted: m });
-                }
-            }
-        });
-
-        sock.ev.on("messages.delete", async ({ keys }) => {
-            if (!ANTI_DELETE) return;
-            for (const key of keys) {
-                const chatId = key.remoteJid;
-                const msgId = key.id;
-                const deletedMsg = store[chatId]?.[msgId];
-                if (deletedMsg) {
-                    await sock.sendMessage(chatId, {
-                        text: `♻️ *ANTI-DELETE*\n@${deletedMsg.key.participant.split("@")[0]} tried to delete:\n\n${deletedMsg.message.conversation || "[Unsupported Message]"}`,
-                        mentions: [deletedMsg.key.participant]
-                    });
-                }
-            }
-        });
-
-    } catch (err) {
-        console.error("🔥 Fatal Bot Error:", err.message);
-        setTimeout(startBot, 5000);
-    }
+  } catch (err) {
+    console.error("🔥 Fatal Error:", err.message);
+    setTimeout(startBot, 5000);
+  }
 }
 
 startBot();
