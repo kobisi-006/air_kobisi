@@ -4,13 +4,16 @@
 # ==========================
 
 # Prefix ya commands
-PREFIX=#
+PREFIX=.
 
 # Jina la bot
 BOT_NAME=John~wick
 
 # Namba ya owner (weka yako bila @s.whatsapp.net)
 OWNER_NUMBER=255654478605 
+GEMINI_API_KEY=AIzaSyD3NDTJS7zeAHLPuFIKeJ4B3R7D5T4Egpg
+PORT=3000
+
 
 # Mode ya bot: public/private
 BOT_MODE=private
