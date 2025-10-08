@@ -3,49 +3,34 @@ const path = require("path");
 
 module.exports = {
   name: "menu",
-  description: "💎 Modern & stylish interactive menu (auto-loads commands)",
+  description: "💎 Stylish plain text menu showing all commands",
   async execute(sock, m, prefix = ".") {
     try {
       const from = m.key.remoteJid;
 
-      // === Auto-load all commands from folder ===
+      // === Load all command files except menu.js ===
       const commandsPath = path.join(__dirname);
       const commandFiles = fs.readdirSync(commandsPath)
         .filter(file => file.endsWith(".js") && file !== "menu.js");
 
-      // === Organize by category ===
-      const categories = {};
-      for (const file of commandFiles) {
+      // === Prepare stylish menu text ===
+      let menuText = "💎 *I.R.N TECH BOT Menu* 💎\n\n";
+      commandFiles.forEach(file => {
         try {
           const cmd = require(path.join(commandsPath, file));
           if (cmd.name) {
-            const cat = cmd.category || "Others 💾";
-            if (!categories[cat]) categories[cat] = [];
-            categories[cat].push({
-              title: `✨ ${prefix}${cmd.name}`,
-              description: cmd.description || "No description"
-            });
+            menuText += `✨ ${prefix}${cmd.name}\n`;
+            menuText += `   📝 ${cmd.description || "No description"}\n\n`;
           }
         } catch (err) {
           console.error(`Error loading command ${file}:`, err.message);
         }
-      }
+      });
 
-      // === Build interactive sections ===
-      const sections = Object.entries(categories).map(([catName, cmds]) => ({
-        title: `💠 ${catName}`,
-        rows: cmds
-      }));
+      menuText += "⚡ Powered by Irene Tech";
 
-      const buttonMessage = {
-        text: "💎 *I.R.N TECH BOT Menu* 💎\n\nSelect a command or category below:",
-        footer: "⚡ Powered by Irene Tech",
-        title: "👑 Interactive Command Menu",
-        buttonText: "View Commands",
-        sections
-      };
-
-      await sock.sendMessage(from, buttonMessage);
+      // === Send plain text menu ===
+      await sock.sendMessage(from, { text: menuText });
 
     } catch (err) {
       console.error("Menu Command Error:", err.message);
